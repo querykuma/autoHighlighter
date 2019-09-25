@@ -342,7 +342,7 @@ javascript: (() => { /* eslint-disable-line no-unused-labels */
           var e = document.createElement("template");
 
           const color_html = is_dark_color(t) ? '' : "color:#222;";
-          e.innerHTML = `<mark class="auto_highlighter" style="font:inherit;background:${color};${color_html}"></mark>`;
+          e.innerHTML = `<mark class="auto_highlighter" style="font:inherit;background:${color};${color_html}background-image: inherit;-webkit-background-clip: inherit;"></mark>`;
 
           e = e.content.firstChild.cloneNode(true);
 
