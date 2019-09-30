@@ -287,6 +287,22 @@ javascript: (() => { /* eslint-disable-line no-unused-labels */
     this.highlight_words(this.words);
 
     this.selections.empty(); /* 選択範囲を解除 */
+
+    this.insert_style();
+  };
+
+  AutoHighlighter.prototype.insert_style = function () {
+
+    document.head.insertAdjacentHTML('beforeend',
+      `<style id="auto_highlighter">
+/* auto_highlighter */
+.auto_highlighter {
+  font: inherit;
+  background-image: inherit;
+  -webkit-background-clip: inherit;
+}
+</style>`);
+
   };
 
   /**
@@ -342,7 +358,7 @@ javascript: (() => { /* eslint-disable-line no-unused-labels */
           var e = document.createElement("template");
 
           const color_html = is_dark_color(t) ? '' : "color:#222;";
-          e.innerHTML = `<mark class="auto_highlighter" style="font:inherit;background:${color};${color_html}background-image: inherit;-webkit-background-clip: inherit;"></mark>`;
+          e.innerHTML = `<mark class="auto_highlighter" style="background:${color};${color_html}"></mark>`;
 
           e = e.content.firstChild.cloneNode(true);
 
@@ -413,6 +429,9 @@ javascript: (() => { /* eslint-disable-line no-unused-labels */
         }
       }
     });
+
+    /* remove style sheet */
+    document.querySelector("#auto_highlighter").remove();
   };
 
   var autohl = new AutoHighlighter();
