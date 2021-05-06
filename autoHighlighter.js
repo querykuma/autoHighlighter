@@ -338,7 +338,10 @@ javascript: (() => { /* eslint-disable-line no-unused-labels */
       /* surroundContents後に同じテキストノードの単語が拾われないので毎回取得  */
       const all_text_nodes = [
         ...document.createNodeIterator(document.body, NodeFilter.SHOW_TEXT,
-          (node) => node.textContent.trim() && this.is_in_selections(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT)
+          (node) => node.textContent.trim()
+            && this.is_in_selections(node)
+            && !["SCRIPT", "STYLE", "NOSCRIPT"].includes(node.parentNode.nodeName.toUpperCase())
+            ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT)
       ];
 
       all_text_nodes.forEach((t) => {
