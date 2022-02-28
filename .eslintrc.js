@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-undef
 module.exports = {
     "env": {
         "browser": true,
@@ -15,9 +16,7 @@ module.exports = {
         "array-callback-return": "error",
         "array-element-newline": "off",
         "arrow-body-style": "error",
-        "arrow-parens": [
-            "error"
-        ],
+        "arrow-parens": ["error"],
         "arrow-spacing": [
             "error",
             {
@@ -127,7 +126,7 @@ module.exports = {
         "no-caller": "error",
         "no-catch-shadow": "error",
         "no-confusing-arrow": "off",
-        "no-continue": "error",
+        "no-continue": "off",
         "no-div-regex": "error",
         "no-duplicate-imports": "error",
         "no-else-return": "error",

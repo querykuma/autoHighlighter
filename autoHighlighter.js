@@ -185,23 +185,17 @@ javascript: (() => { /* eslint-disable-line no-unused-labels */
 
 
   /**
-   * AutoHighlighter -- highlight words automatically.
+   * autoHighlighter 2.0 -- highlight words automatically.
    * (c) 2019 Query Kuma
    * Released under the MIT license.
    * https://opensource.org/licenses/mit-license.php
    */
   function AutoHighlighter() {
-    this.num_highlight_words = 30;
-    this.default_colors = "greenyellow gold pink aquamarine";
+    this.num_highlight_words = 30; /* ハイライトする上位の単語数 */
+    this.background_colors = "greenyellow gold pink #2eff69 #f7c2ff #b1fff6 #ffd0a6 #c9eef6 #a6ddff";
 
-    this.selections = window.getSelection();
-
-    /* expand selection to boundary */
-    if (this.selections.rangeCount === 1) {
-      var sel = this.selections.getRangeAt(0);
-      sel.setStartBefore(sel.startContainer);
-      sel.setEndAfter(sel.endContainer);
-    }
+    /* 前置詞など一般的な単語をハイライトから除外する */
+    this.exclude_words = "which what when where whether would could should might will must that this these those they their them your there from with about than before after into since over during above below through around down under along without within inside beside between among near until against were been more only also most have";
 
     /* createNodeIteratorをイテレータとして使用する */
     /* eslint-disable-next-line no-cond-assign */
@@ -229,44 +223,58 @@ javascript: (() => { /* eslint-disable-line no-unused-labels */
       return Object.entries(count);
     };
 
-    let all_texts;
+    /**
+     * createNodeIteratorで得られるテキストノードを条件抽出する
+     *
+     * @param {node} node
+     * @returns
+     */
+    function node_filter(node) {
+      if (!node.textContent.trim()) {
+        return NodeFilter.FILTER_REJECT;
+      }
 
-    if (this.selections.rangeCount === 0) {
+      const parent = node.parentElement;
+      const tags = ["script", "style", "noscript"];
+      for (let index = 0; index < tags.length; index++) {
+        const tag = tags[index];
+        if (parent.closest(tag)) {
+          return NodeFilter.FILTER_REJECT;
+        }
+      }
 
-      const clone_body = document.body.cloneNode(true);
-
-      clone_body.querySelectorAll("script").forEach((node) => node.remove());
-      clone_body.querySelectorAll("style").forEach((node) => node.remove());
-      clone_body.querySelectorAll("noscript").forEach((node) => node.remove());
-
-      all_texts = [
-        ...document.createNodeIterator(clone_body, NodeFilter.SHOW_TEXT,
-          (node) => node.textContent.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT)
-      ].map((a) => a.textContent.toLowerCase());
-
-    } else {
-
-      all_texts = [
-        ...document.createNodeIterator(document.body, NodeFilter.SHOW_TEXT,
-          (node) => node.textContent.trim() && this.is_in_selections(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT)
-      ].map((a) => a.textContent.toLowerCase());
-
+      var bcr = parent.getBoundingClientRect();
+      var cs = getComputedStyle(parent);
+      if (bcr.width !== 0 &&
+        bcr.height !== 0 &&
+        cs.display !== "none" &&
+        cs.visibility !== "hidden" &&
+        cs.fontSize !== "0px") {
+        return NodeFilter.FILTER_ACCEPT;
+      }
+      return NodeFilter.FILTER_REJECT;
     }
 
+    this.N_base_texts = [...document.createNodeIterator(document.body, NodeFilter.SHOW_TEXT, node_filter)];
+
     const ts = new TinySegmenter();
-    const seg = all_texts.flatMap((text) => ts.segment(text));
+    const seg = this.N_base_texts.flatMap((text) => ts.segment(text.textContent.toLowerCase()));
+
+    const exclude_words = this.exclude_words.split(/\s/u);
 
     this.words = seg.
       map((word) => word.
-        split(/\n/).
+        split(/[\s()（）「」]/u). /* 半角空白や全角空白や改行やタブや括弧で区切る */
         map((word) => word.trim()).
         filter((word) => word)). /* TinySegmenterが改行を含んだ単語を出すので改行で分離 */
       flat().
       filter((word) => word &&
         word.length > 1 &&
-        (!/^[ぁ-んー　]+$/.test(word) || word.length > 3) && /* 平仮名なら4文字以上 */ /* eslint-disable-line no-irregular-whitespace */
-        (!/^[ -~]+$/.test(word) || word.length > 3)). /* 半角英数字なら4文字以上 */
+        (!/^[ぁ-んー　]+$/u.test(word) || word.length > 3) && /* 平仮名なら4文字以上 */ /* eslint-disable-line no-irregular-whitespace */
+        (!/^[ -~]+$/u.test(word) || word.length > 3)). /* 半角英数字なら4文字以上 */
+      filter((word) => !exclude_words.includes(word)).
       tallyCount().
+      filter(([, b]) => b > 1). /* 一個のみの単語をハイライトしない */
       sort((a, b) => { /* 個数の多い順に並べる */
         if (b[1] > a[1]) {
           return 1;
@@ -280,13 +288,11 @@ javascript: (() => { /* eslint-disable-line no-unused-labels */
         return -1;
       }).
       slice(0, this.num_highlight_words).
-      map((a) => a[0]);
+      map((a) => a[0].toLowerCase()); /* 英語を小文字で比較 */
 
     console.log(this.words);
 
     this.highlight_words(this.words);
-
-    this.selections.empty(); /* 選択範囲を解除 */
 
     this.insert_style();
   };
@@ -294,108 +300,152 @@ javascript: (() => { /* eslint-disable-line no-unused-labels */
   AutoHighlighter.prototype.insert_style = function () {
 
     document.head.insertAdjacentHTML('beforeend',
-      `<style id="auto_highlighter">
-/* auto_highlighter */
-.auto_highlighter {
-  font: inherit;
-  background-image: inherit;
-  -webkit-background-clip: inherit;
-}
-</style>`);
+      `<style id="auto_highlighter">.auto_highlighter {
+font: inherit;
+font-size: inherit;
+background-image: inherit;
+-webkit-background-clip: inherit;
+display: initial;
+}</style>`);
 
   };
 
   /**
-   * highlight _words with _colors.
+   * highlight words with this.background_colors.
    *
-   * @param {string[]} _words
-   * @param {string} [_colors=this.default_colors]
+   * @param {string[]} words
    */
-  AutoHighlighter.prototype.highlight_words = function (_words, _colors = this.default_colors) {
+  AutoHighlighter.prototype.highlight_words = function (words) {
+    const background_colors = this.background_colors.split(/\s+/u);
 
     /**
-     * textNodeの文字が暗い色ならtrueを返す。getComputedStyleのcolorの"rgb(238, 128, 0)"から判定。
+     * elementの文字が暗い色ならtrueを返す。getComputedStyleのcolorの"rgb(r, g, b)"の数値の合計から判定。
      *
-     * @param {Node} textNode
+     * @param {element} element
      * @returns {boolean}
      */
-    function is_dark_color(textNode) {
-      const color = getComputedStyle(textNode.parentElement).color;
+    function is_dark_color(element) {
+      const color = getComputedStyle(element).color;
       return color.
-        match(/(\d+)/g).
-        reduce((ac, cv) => parseInt(cv, 10) + ac, 0) < 380;
+        match(/(\d+)/gu).
+        reduce((ac, cv) => Number(cv) + ac, 0) < 380;
     }
 
-    var color_i = 0;
-    const colors = _colors.split(/\s+/);
-    const words = _words.map((word) => word.toLowerCase());
+    /**
+     * テキストを<mark>で囲ってハイライトした要素を返す。
+     *
+     * @param {string} text
+     * @param {element} e_parent
+     * @param {string} background_color
+     * @returns {element}
+     */
+    function get_marked_node(text, e_parent, background_color) {
+      const color_css = is_dark_color(e_parent) ? '' : "color:#222;";
 
-    words.forEach((word) => {
+      let e_mark = document.createElement("mark");
+      e_mark.classList.add("auto_highlighter");
+      e_mark.setAttribute('style', 'background:' + background_color + ';' + color_css);
+      e_mark.textContent = text;
 
-      const color = colors[color_i];
-      color_i = (color_i + 1) % colors.length;
+      return e_mark;
+    }
 
-      /* surroundContents後に同じテキストノードの単語が拾われないので毎回取得  */
-      const all_text_nodes = [
-        ...document.createNodeIterator(document.body, NodeFilter.SHOW_TEXT,
-          (node) => node.textContent.trim()
-            && this.is_in_selections(node)
-            && !["SCRIPT", "STYLE", "NOSCRIPT"].includes(node.parentNode.nodeName.toUpperCase())
-            ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT)
-      ];
+    /**
+     * テキストノードのテキストをハイライト後に得られる置換ノードの配列（要素か文字列）を返す。
+     * どのwordも含まない場合はnullを返す。
+     *
+     * @param {node} _N_text
+     * @returns {null|(element|string)[]}
+     */
+    function get_marked_nodes(_N_text) {
+      const e_parent = _N_text.parentElement; /* get_marked_nodeのis_dark_colorで使用 */
+      let v_targets = [_N_text.textContent]; /* 最終的に得られる要素か文字列の配列 */
+      let f_replaced = true; /* ループ(loop:)内で一度でも置換されたらtrueにする */
+      let f_replaced_in_function = false; /* この関数内で一度でも置換されたらtrueにする */
 
-      all_text_nodes.forEach((t) => {
-        var res;
+      loop:
+      while (f_replaced) {
+        f_replaced = false;
 
-        for (; ;) {
-          res = t.textContent.
-            toLowerCase().
-            indexOf(word);
+        for (let i = 0; i < v_targets.length; i++) {
+          const v_value = v_targets[i];
 
-          if (res < 0) return;
+          if (typeof (v_value) !== "string" || v_value === '') {
+            continue;
+          }
 
-          const r = new Range();
-          r.setStart(t, res);
-          r.setEnd(t, res + word.length);
+          for (let j = 0; j < words.length; j++) {
+            const word = words[j];
+            const background_color = background_colors[j % background_colors.length];
 
-          var e = document.createElement("template");
+            let N_replaced = []; /* 同じwordがtext内に複数あったときに対応するため一旦N_replacedに保管する */
+            let text = v_value;
+            let index = text.toLowerCase().lastIndexOf(word);
+            let pre_text = null; /* 一致したwordの前のテキスト */
 
-          const color_html = is_dark_color(t) ? '' : "color:#222;";
-          e.innerHTML = `<mark class="auto_highlighter" style="background:${color};${color_html}"></mark>`;
+            while (index >= 0) {
+              pre_text = text.substring(0, index);
+              const matched_word = text.substring(index, index + word.length); /* 大文字小文字をそのまま残すため */
+              const e_marked = get_marked_node(matched_word, e_parent, background_color);
+              const post_text = text.substring(index + word.length); /* 一致したwordの後のテキスト */
 
-          e = e.content.firstChild.cloneNode(true);
+              N_replaced.unshift(e_marked, post_text);
 
-          r.surroundContents(e); /* 範囲を<mark>で囲む */
+              text = pre_text;
+              index = text.toLowerCase().lastIndexOf(word);
+            }
 
-          t = r.endContainer.childNodes[r.endOffset];
+            /* textの一部が一度でもwordに一致したらpre_text !== nullになる */
+            if (pre_text !== null) {
+              N_replaced.unshift(pre_text);
+
+              v_targets.splice(i, 1, ...N_replaced);
+
+              f_replaced = true;
+              f_replaced_in_function = true;
+
+              continue loop;
+            }
+          }
         }
-      });
-    });
-  };
+      }
 
-  /**
-   * 選択範囲がないか、もしくはtextNodeと選択範囲が重なる部分を持っていればtrueを返す。
-   *
-   * @param {Node} textNode
-   * @returns {boolean}
-   */
-  AutoHighlighter.prototype.is_in_selections = function (textNode) {
-    var selections = this.selections;
-    var sourceRange = new Range();
-
-    if (selections.rangeCount === 0) return true;
-
-    for (var i = 0; i < selections.rangeCount; i++) {
-      var sel = selections.getRangeAt(i);
-      sourceRange.selectNode(textNode);
-
-      /* 選択範囲の終点が、textの始点より後ろにある && 選択範囲の始点が、textの終点より前にある */
-      var flag = sel.compareBoundaryPoints(Range.START_TO_END, sourceRange) >= 0 &&
-        sel.compareBoundaryPoints(Range.END_TO_START, sourceRange) <= 0;
-      if (flag) return flag;
+      if (f_replaced_in_function) {
+        return v_targets;
+      }
+      return null;
     }
 
-    return false;
+    /**
+     * ターゲットノードを置換用ノードの配列と置換する。
+     *
+     * @param {node} target_node
+     * @param {node[]} replaced_nodes
+     */
+    function replace_node_with(target_node, replaced_nodes) {
+      let N_origin = target_node.previousSibling;
+      let e_parent = target_node.parentElement;
+
+      target_node.remove();
+
+      /* target_nodeが最初の子ノードかで分岐する */
+      if (N_origin) {
+        N_origin.after(...replaced_nodes);
+      } else {
+        e_parent.prepend(...replaced_nodes);
+      }
+    }
+
+    const N_base_texts = this.N_base_texts;
+
+    for (let i = 0; i < N_base_texts.length; i++) {
+      let N_base_text = N_base_texts[i];
+
+      let N_marked = get_marked_nodes(N_base_text);
+      if (N_marked) {
+        replace_node_with(N_base_text, N_marked);
+      }
+    }
   };
 
   /**
@@ -434,7 +484,10 @@ javascript: (() => { /* eslint-disable-line no-unused-labels */
     });
 
     /* remove style sheet */
-    document.querySelector("#auto_highlighter").remove();
+    var el_auto_highlighter = document.querySelector("#auto_highlighter");
+    if (el_auto_highlighter) {
+      el_auto_highlighter.remove();
+    }
   };
 
   var autohl = new AutoHighlighter();
