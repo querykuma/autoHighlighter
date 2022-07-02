@@ -190,6 +190,31 @@ javascript: (() => { /* eslint-disable-line no-unused-labels */
    * Released under the MIT license.
    * https://opensource.org/licenses/mit-license.php
    */
+
+  /**
+   * ターゲットノードを置換用ノードの配列と置換する。
+   *
+   * @param {node} target_node
+   * @param {node[]} replaced_nodes
+   */
+  function replace_node_with(target_node, replaced_nodes) {
+    let N_origin = target_node.previousSibling;
+    let e_parent = target_node.parentElement;
+
+    target_node.remove();
+
+    /* target_nodeが最初の子ノードかで分岐する */
+    if (N_origin) {
+      N_origin.after(...replaced_nodes);
+    } else {
+      e_parent.prepend(...replaced_nodes);
+    }
+  }
+
+  /**
+   * new AutoHighlighter()でオブジェクトを返す。
+   * @returns {AutoHighlighter}
+   */
   function AutoHighlighter() {
     this.num_highlight_words = 30; /* ハイライトする上位の単語数 */
     this.background_colors = "greenyellow gold pink #2eff69 #f7c2ff #b1fff6 #ffd0a6 #c9eef6 #a6ddff";
@@ -306,6 +331,7 @@ font-size: inherit;
 background-image: inherit;
 -webkit-background-clip: inherit;
 display: initial;
+-webkit-text-fill-color: initial;
 }</style>`);
 
   };
@@ -416,26 +442,6 @@ display: initial;
       return null;
     }
 
-    /**
-     * ターゲットノードを置換用ノードの配列と置換する。
-     *
-     * @param {node} target_node
-     * @param {node[]} replaced_nodes
-     */
-    function replace_node_with(target_node, replaced_nodes) {
-      let N_origin = target_node.previousSibling;
-      let e_parent = target_node.parentElement;
-
-      target_node.remove();
-
-      /* target_nodeが最初の子ノードかで分岐する */
-      if (N_origin) {
-        N_origin.after(...replaced_nodes);
-      } else {
-        e_parent.prepend(...replaced_nodes);
-      }
-    }
-
     const N_base_texts = this.N_base_texts;
 
     for (let i = 0; i < N_base_texts.length; i++) {
@@ -461,14 +467,18 @@ display: initial;
       for (var node of child_nodes) {
 
         if (node.classList && node.classList.contains("auto_highlighter")) {
-          if (prev_text_node) {
-            prev_text_node.textContent += node.textContent;
-          } else {
-            prev_text_node = node.parentElement.insertBefore(node.firstChild.cloneNode(true), node);
-            if (prev_text_node.nodeType !== Node.TEXT_NODE) prev_text_node = null;
-          }
+          if (node.childNodes.length === 1 && node.firstChild.nodeType === Node.TEXT_NODE) {
+            if (prev_text_node) {
+              prev_text_node.textContent += node.textContent;
+            } else {
+              prev_text_node = node.parentElement.insertBefore(node.firstChild, node);
+            }
 
-          node.remove();
+            node.remove();
+          } else {
+            replace_node_with(node, node.childNodes);
+            prev_text_node = null;
+          }
 
         } else if (node.nodeType === Node.TEXT_NODE) {
           if (prev_text_node) {
